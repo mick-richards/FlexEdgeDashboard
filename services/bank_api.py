@@ -38,41 +38,32 @@ def _get_app_id() -> str:
 
 def _get_private_key() -> str:
     import base64
-    # Try base64-encoded key from secrets
-    for key_name in ["ENABLE_BANKING_PRIVATE_KEY_B64"]:
-        try:
-            val = st.secrets.get(key_name)
-            if val:
-                return base64.b64decode(str(val)).decode("utf-8")
-        except Exception:
-            pass
-        try:
-            val = st.secrets[key_name]
-            if val:
-                return base64.b64decode(str(val)).decode("utf-8")
-        except Exception:
-            pass
+    # Try split base64 key parts (EB_KEY_1 through EB_KEY_5)
+    try:
+        parts = []
+        for i in range(1, 10):
+            part = st.secrets.get(f"EB_KEY_{i}", "")
+            if part:
+                parts.append(str(part))
+        if parts:
+            combined = "".join(parts)
+            return base64.b64decode(combined).decode("utf-8")
+    except Exception:
+        pass
+    # Try single base64-encoded key
+    try:
+        val = st.secrets.get("ENABLE_BANKING_PRIVATE_KEY_B64", "")
+        if val:
+            return base64.b64decode(str(val)).decode("utf-8")
+    except Exception:
+        pass
     # Try plain key from secrets
-    for key_name in ["ENABLE_BANKING_PRIVATE_KEY"]:
-        try:
-            val = st.secrets.get(key_name)
-            if val:
-                return str(val)
-        except Exception:
-            pass
-        try:
-            val = st.secrets[key_name]
-            if val:
-                return str(val)
-        except Exception:
-            pass
-    # Try env vars
-    env_b64 = os.environ.get("ENABLE_BANKING_PRIVATE_KEY_B64", "")
-    if env_b64:
-        return base64.b64decode(env_b64).decode("utf-8")
-    env_key = os.environ.get("ENABLE_BANKING_PRIVATE_KEY", "")
-    if env_key:
-        return env_key
+    try:
+        val = st.secrets.get("ENABLE_BANKING_PRIVATE_KEY", "")
+        if val:
+            return str(val)
+    except Exception:
+        pass
     # Fall back to local .pem file
     if _KEY_PATH.exists():
         return _KEY_PATH.read_text(encoding="utf-8")
