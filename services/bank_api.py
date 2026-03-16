@@ -24,31 +24,55 @@ _KEY_PATH = Path(__file__).parent.parent / ".streamlit" / "enable_banking_key.pe
 
 def _get_app_id() -> str:
     try:
+        val = st.secrets.get("ENABLE_BANKING_APP_ID")
+        if val:
+            return str(val)
+    except Exception:
+        pass
+    try:
         return st.secrets["ENABLE_BANKING_APP_ID"]
     except Exception:
-        return os.environ.get("ENABLE_BANKING_APP_ID", "")
+        pass
+    return os.environ.get("ENABLE_BANKING_APP_ID", "")
 
 
 def _get_private_key() -> str:
     import base64
-    # Try base64-encoded key from secrets first (avoids multi-line TOML issues)
-    try:
-        key_b64 = st.secrets.get("ENABLE_BANKING_PRIVATE_KEY_B64", "")
-        if key_b64:
-            return base64.b64decode(key_b64).decode("utf-8")
-    except Exception:
-        pass
+    # Try base64-encoded key from secrets
+    for key_name in ["ENABLE_BANKING_PRIVATE_KEY_B64"]:
+        try:
+            val = st.secrets.get(key_name)
+            if val:
+                return base64.b64decode(str(val)).decode("utf-8")
+        except Exception:
+            pass
+        try:
+            val = st.secrets[key_name]
+            if val:
+                return base64.b64decode(str(val)).decode("utf-8")
+        except Exception:
+            pass
     # Try plain key from secrets
-    try:
-        key = st.secrets.get("ENABLE_BANKING_PRIVATE_KEY", "")
-        if key:
-            return key
-    except Exception:
-        pass
-    # Try base64 from env
+    for key_name in ["ENABLE_BANKING_PRIVATE_KEY"]:
+        try:
+            val = st.secrets.get(key_name)
+            if val:
+                return str(val)
+        except Exception:
+            pass
+        try:
+            val = st.secrets[key_name]
+            if val:
+                return str(val)
+        except Exception:
+            pass
+    # Try env vars
     env_b64 = os.environ.get("ENABLE_BANKING_PRIVATE_KEY_B64", "")
     if env_b64:
         return base64.b64decode(env_b64).decode("utf-8")
+    env_key = os.environ.get("ENABLE_BANKING_PRIVATE_KEY", "")
+    if env_key:
+        return env_key
     # Fall back to local .pem file
     if _KEY_PATH.exists():
         return _KEY_PATH.read_text(encoding="utf-8")

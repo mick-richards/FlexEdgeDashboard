@@ -93,19 +93,25 @@ ENABLE_BANKING_SESSION_ID = "{session_id}"
                 st.error("Kon geen autorisatie starten. Controleer je credentials en probeer opnieuw.")
 
 else:
-    st.markdown("""
-    De bankkoppeling is nog niet ingesteld. Voeg deze waarden toe aan **Streamlit Cloud Secrets**:
-    """)
+    st.markdown("De bankkoppeling is nog niet ingesteld.")
 
-    st.code("""
-# Enable Banking
-ENABLE_BANKING_APP_ID = "jouw-app-id"
-ENABLE_BANKING_PRIVATE_KEY = \"\"\"-----BEGIN PRIVATE KEY-----
-... (plak hier de volledige inhoud van je .pem bestand) ...
------END PRIVATE KEY-----\"\"\"
-    """, language="toml")
+    # Debug: show what secrets are found
+    with st.expander("Debug: Secret status", expanded=True):
+        try:
+            all_keys = list(st.secrets.keys()) if hasattr(st.secrets, 'keys') else []
+            st.markdown(f"**Gevonden secrets:** {all_keys}")
+        except Exception as e:
+            st.markdown(f"**Fout bij lezen secrets:** {e}")
 
-    st.markdown("Na het toevoegen: herstart de app en kom terug naar deze pagina om je bank te koppelen.")
+        from services.bank_api import _get_app_id, _get_private_key
+        app_id = _get_app_id()
+        pk = _get_private_key()
+        st.markdown(f"**App ID gevonden:** {'Ja' if app_id else 'Nee'} ({app_id[:8]}...)" if app_id else "**App ID gevonden:** Nee")
+        st.markdown(f"**Private key gevonden:** {'Ja' if pk else 'Nee'} ({len(pk)} chars)" if pk else "**Private key gevonden:** Nee")
+
+    st.markdown("Voeg deze waarden toe aan **Streamlit Cloud Secrets**:")
+    st.code('ENABLE_BANKING_APP_ID = "jouw-app-id"\nENABLE_BANKING_PRIVATE_KEY_B64 = "base64-encoded-key"', language="toml")
+    st.markdown("Na het toevoegen: herstart de app en kom terug naar deze pagina.")
 
 st.divider()
 
