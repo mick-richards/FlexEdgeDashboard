@@ -30,13 +30,25 @@ def _get_app_id() -> str:
 
 
 def _get_private_key() -> str:
-    # Try secrets first (Streamlit Cloud stores as string)
+    import base64
+    # Try base64-encoded key from secrets first (avoids multi-line TOML issues)
+    try:
+        key_b64 = st.secrets.get("ENABLE_BANKING_PRIVATE_KEY_B64", "")
+        if key_b64:
+            return base64.b64decode(key_b64).decode("utf-8")
+    except Exception:
+        pass
+    # Try plain key from secrets
     try:
         key = st.secrets.get("ENABLE_BANKING_PRIVATE_KEY", "")
         if key:
             return key
     except Exception:
         pass
+    # Try base64 from env
+    env_b64 = os.environ.get("ENABLE_BANKING_PRIVATE_KEY_B64", "")
+    if env_b64:
+        return base64.b64decode(env_b64).decode("utf-8")
     # Fall back to local .pem file
     if _KEY_PATH.exists():
         return _KEY_PATH.read_text(encoding="utf-8")
