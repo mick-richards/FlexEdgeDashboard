@@ -18,7 +18,11 @@ st.set_page_config(
 # ── Auth ──
 def _check_auth() -> bool:
     try:
-        auth_password = st.secrets.get("auth", {}).get("password", "")
+        # Support both flat (AUTH_PASSWORD) and nested ([auth].password)
+        auth_password = st.secrets.get("AUTH_PASSWORD", "")
+        if not auth_password:
+            auth_section = st.secrets.get("auth", {})
+            auth_password = auth_section.get("password", "") if isinstance(auth_section, dict) else ""
     except Exception:
         return True
     if not auth_password:
