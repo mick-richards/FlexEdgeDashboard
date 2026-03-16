@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import streamlit as st
+import pandas as pd
 import plotly.graph_objects as go
 
 from services.productive_api import get_invoices
@@ -12,8 +13,16 @@ from services.bank_api import is_configured as bank_configured, get_balance
 st.markdown("# Runway")
 st.caption("Hoeveel maanden kunnen we door op basis van huidig saldo en verwachte inkomsten?")
 
-# ── Sidebar: fixed costs ──
+# ── Sidebar: fixed costs + manual balance ──
 with st.sidebar:
+    st.markdown("### Banksaldo")
+    manual_balance = st.number_input(
+        "Huidig saldo (EUR)", value=0, step=1000, key="manual_balance",
+        help="Vul je huidige banksaldo in. Wordt automatisch als de bankkoppeling actief is.",
+    )
+    balance_date_input = st.date_input("Peildatum", value=date.today(), key="balance_date")
+
+    st.divider()
     st.markdown("### Vaste Lasten / maand")
     monthly_salary = st.number_input("Salarissen", value=8500, step=500, key="s_salary")
     monthly_office = st.number_input("Kantoor & tools", value=1500, step=100, key="s_office")
@@ -35,22 +44,31 @@ total_outstanding = sum(i["total_with_tax"] for i in sent_invoices)
 total_overdue = sum(i["total_with_tax"] for i in overdue_invoices)
 total_paid_ytd = sum(i["total_with_tax"] for i in paid_ytd)
 
-# ── Bank balance ──
+# ── Bank balance: prefer API, fallback to manual ──
 if bank_configured():
     balance_data = get_balance()
     bank_balance = balance_data["amount"] if balance_data else None
     balance_date = balance_data["date"] if balance_data else None
+    balance_source = "GoCardless"
 else:
     bank_balance = None
     balance_date = None
+    balance_source = None
+
+# Use manual balance if no API
+if bank_balance is None and manual_balance > 0:
+    bank_balance = float(manual_balance)
+    balance_date = balance_date_input.isoformat()
+    balance_source = "Handmatig"
 
 # ── KPI row ──
 c1, c2, c3, c4 = st.columns(4)
 with c1:
     if bank_balance is not None:
-        st.metric("Banksaldo", f"EUR {bank_balance:,.0f}", help=f"Per {balance_date}")
+        st.metric("Banksaldo", f"EUR {bank_balance:,.0f}",
+                  help=f"Per {balance_date} ({balance_source})")
     else:
-        st.metric("Banksaldo", "Niet gekoppeld")
+        st.metric("Banksaldo", "Vul in via sidebar")
 with c2:
     st.metric("Openstaand", f"EUR {total_outstanding:,.0f}")
 with c3:
@@ -62,7 +80,7 @@ with c4:
 st.divider()
 
 # ── Runway calculation ──
-if bank_balance is not None:
+if bank_balance is not None and bank_balance > 0:
     available = bank_balance + total_outstanding
     runway_months = available / total_fixed if total_fixed > 0 else 99
 
@@ -91,7 +109,6 @@ if bank_balance is not None:
         d = d.replace(day=1)
         dates.append(d)
         balances.append(bal)
-        # Assume outstanding collected over 3 months, then just burn
         income = total_outstanding / 3 if m < 3 else 0
         bal = bal - total_fixed + income
 
@@ -112,15 +129,12 @@ if bank_balance is not None:
     )
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.info(
-        "Koppel je bankrekening om de volledige runway te berekenen. "
-        "Ga naar **Instellingen** in het menu."
-    )
+    st.info("Vul je banksaldo in via de sidebar om de runway te berekenen.")
 
 # ── Open invoices table ──
+st.divider()
 st.markdown("#### Openstaande Facturen")
 if sent_invoices:
-    import pandas as pd
     df = pd.DataFrame(sent_invoices)[["number", "date", "due_date", "total_with_tax", "status"]]
     df.columns = ["Nummer", "Datum", "Vervaldatum", "Bedrag", "Status"]
     df["Bedrag"] = df["Bedrag"].apply(lambda x: f"EUR {x:,.2f}")

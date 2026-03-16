@@ -47,14 +47,15 @@ if not _check_auth():
 
 # ── Navigation ──
 runway = st.Page("pages/1_Runway.py", title="Runway", icon=":material/savings:", default=True)
-revenue = st.Page("pages/2_Omzet.py", title="Omzet & Facturen", icon=":material/receipt_long:")
-pipeline = st.Page("pages/3_Pipeline.py", title="Pipeline", icon=":material/filter_alt:")
-utilization = st.Page("pages/4_Uren.py", title="Uren & Bezetting", icon=":material/schedule:")
-resourcing = st.Page("pages/5_Resourcing.py", title="Resourcing", icon=":material/groups:")
-settings = st.Page("pages/6_Instellingen.py", title="Instellingen", icon=":material/settings:")
+expenses = st.Page("pages/2_Uitgaven.py", title="Uitgaven", icon=":material/payments:")
+revenue = st.Page("pages/3_Omzet.py", title="Omzet & Facturen", icon=":material/receipt_long:")
+pipeline = st.Page("pages/4_Pipeline.py", title="Pipeline", icon=":material/filter_alt:")
+utilization = st.Page("pages/5_Uren.py", title="Uren & Bezetting", icon=":material/schedule:")
+resourcing = st.Page("pages/6_Resourcing.py", title="Resourcing", icon=":material/groups:")
+settings = st.Page("pages/7_Instellingen.py", title="Instellingen", icon=":material/settings:")
 
 pg = st.navigation({
-    "Financieel": [runway, revenue, pipeline],
+    "Financieel": [runway, expenses, revenue, pipeline],
     "Team": [utilization, resourcing],
     "Systeem": [settings],
 })
