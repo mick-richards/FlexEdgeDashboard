@@ -1,9 +1,7 @@
-"""Uitgaven — Expense tracking and transaction log."""
+"""Uitgaven — Actual expenses from bank transactions."""
 from __future__ import annotations
 
-import json
-from datetime import date
-from pathlib import Path
+from datetime import date, timedelta
 
 import streamlit as st
 import pandas as pd
@@ -12,146 +10,149 @@ import plotly.graph_objects as go
 from services.bank_api import is_configured as bank_configured, get_transactions
 
 st.markdown("# Uitgaven")
-st.caption("Overzicht van alle uitgaven. Handmatig of automatisch via bankkoppeling.")
+st.caption("Werkelijke uitgaven op basis van banktransacties.")
 
-DATA_FILE = Path(__file__).parent.parent / "data" / "expenses.json"
-DATA_FILE.parent.mkdir(exist_ok=True)
-
-CATEGORIES = [
-    "Salarissen",
-    "Kantoor",
-    "Software & tools",
-    "Reiskosten",
-    "Marketing",
-    "Advies & accountant",
-    "Verzekeringen",
-    "Belastingen",
-    "Inhuur / freelancers",
-    "Overig",
-]
-
-
-def _load_expenses() -> list[dict]:
-    if DATA_FILE.exists():
-        return json.loads(DATA_FILE.read_text(encoding="utf-8"))
-    return []
+# ── Auto-categorization rules ──
+CATEGORY_RULES = {
+    "Salarissen": ["loonheffing", "salaris", "dga"],
+    "Boekhouder": ["slingerland"],
+    "Software & tools": ["anthropic", "claude", "github", "streamlit", "zapier", "plaud",
+                         "docusign", "think-cell", "microsoft", "norton", "cloudflare"],
+    "Kantoor": ["spaces", "swoh", "plnt", "huur"],
+    "Verzekeringen": ["verzekering", "insurance", "anker"],
+    "Reiskosten": ["ns.nl", "ov-chipkaart", "transvia", "parkeer", "shell", "bp "],
+    "Telecom": ["odido", "kpn", "t-mobile"],
+    "Belasting": ["belastingdienst", "gemeente", "kvk"],
+    "Bank": ["transactiekosten", "rente"],
+    "Inhuur": ["gerben", "vermeulen", "eddie"],
+}
 
 
-def _save_expenses(expenses: list[dict]) -> None:
-    DATA_FILE.write_text(json.dumps(expenses, indent=2, ensure_ascii=False), encoding="utf-8")
+def _categorize(description: str) -> str:
+    desc_lower = description.lower()
+    for category, keywords in CATEGORY_RULES.items():
+        for keyword in keywords:
+            if keyword in desc_lower:
+                return category
+    return "Overig"
 
 
-# ── Load data ──
-expenses = _load_expenses()
+if not bank_configured():
+    st.info("Koppel je bankrekening bij **Instellingen** om uitgaven automatisch te laden.")
+    st.stop()
 
-# ── Bank transactions (if connected) ──
-if bank_configured():
-    st.success("Bankkoppeling actief — transacties worden automatisch opgehaald.")
-    bank_txns = get_transactions(days=90)
-    if bank_txns:
-        st.markdown("#### Banktransacties (laatste 90 dagen)")
-        txn_df = pd.DataFrame(bank_txns)
-        # Only show outgoing (negative amounts)
-        outgoing = txn_df[txn_df["amount"] < 0].copy()
-        outgoing["amount"] = outgoing["amount"].abs()
-        if not outgoing.empty:
-            outgoing = outgoing[["date", "description", "amount"]].copy()
-            outgoing.columns = ["Datum", "Omschrijving", "Bedrag"]
-            outgoing["Bedrag"] = outgoing["Bedrag"].apply(lambda x: f"EUR {x:,.2f}")
-            st.dataframe(outgoing.head(50), use_container_width=True, hide_index=True)
-        st.divider()
+# ── Sidebar: period ──
+with st.sidebar:
+    st.markdown("### Periode")
+    period = st.selectbox("Toon", ["Laatste 30 dagen", "Laatste 90 dagen", "Dit jaar"], key="exp_period")
+    days_map = {"Laatste 30 dagen": 30, "Laatste 90 dagen": 90, "Dit jaar": (date.today() - date(2026, 1, 1)).days}
+    days = days_map[period]
 
-# ── Manual expense entry ──
-st.markdown("#### Uitgave Toevoegen")
+# ── Load transactions ──
+with st.spinner("Transacties ophalen..."):
+    transactions = get_transactions(days=days)
 
-with st.form("add_expense", clear_on_submit=True):
-    col1, col2, col3 = st.columns([1.5, 1, 1])
-    with col1:
-        desc = st.text_input("Omschrijving", placeholder="bijv. Claude Pro abonnement")
-    with col2:
-        amount = st.number_input("Bedrag (EUR)", min_value=0.0, step=10.0, format="%.2f")
-    with col3:
-        category = st.selectbox("Categorie", CATEGORIES)
+if not transactions:
+    st.warning("Geen transacties gevonden voor deze periode.")
+    st.stop()
 
-    col4, col5 = st.columns(2)
-    with col4:
-        exp_date = st.date_input("Datum", value=date.today())
-    with col5:
-        recurring = st.selectbox("Frequentie", ["Eenmalig", "Maandelijks", "Jaarlijks"])
+df = pd.DataFrame(transactions)
+outgoing = df[df["amount"] < 0].copy()
+incoming = df[df["amount"] > 0].copy()
 
-    submitted = st.form_submit_button("Toevoegen", type="primary", use_container_width=True)
-    if submitted and desc and amount > 0:
-        new_expense = {
-            "date": exp_date.isoformat(),
-            "description": desc,
-            "amount": amount,
-            "category": category,
-            "recurring": recurring,
-            "added": date.today().isoformat(),
-        }
-        expenses.append(new_expense)
-        _save_expenses(expenses)
-        st.success(f"Toegevoegd: {desc} — EUR {amount:,.2f}")
-        st.rerun()
+outgoing["amount"] = outgoing["amount"].abs()
+outgoing["category"] = outgoing["description"].apply(_categorize)
 
-# ── Expense overview ──
-if expenses:
+# ══════════════════════════════════════════════════════════════
+# KPIs
+# ══════════════════════════════════════════════════════════════
+
+total_out = outgoing["amount"].sum()
+total_in = incoming["amount"].sum()
+n_transactions = len(outgoing)
+
+c1, c2, c3 = st.columns(3)
+with c1:
+    st.metric("Totaal uitgegeven", f"EUR {total_out:,.0f}")
+with c2:
+    st.metric("Totaal ontvangen", f"EUR {total_in:,.0f}")
+with c3:
+    netto = total_in - total_out
+    st.metric("Netto", f"EUR {netto:,.0f}",
+              delta="Positief" if netto > 0 else "Negatief",
+              delta_color="normal" if netto > 0 else "inverse")
+
+# ══════════════════════════════════════════════════════════════
+# PER CATEGORIE
+# ══════════════════════════════════════════════════════════════
+
+st.divider()
+st.markdown("#### Per Categorie")
+
+cat_df = outgoing.groupby("category")["amount"].sum().sort_values(ascending=True).reset_index()
+cat_df.columns = ["Categorie", "Bedrag"]
+
+fig = go.Figure()
+fig.add_trace(go.Bar(
+    y=cat_df["Categorie"], x=cat_df["Bedrag"],
+    orientation="h",
+    marker_color="#003566",
+    text=cat_df["Bedrag"].apply(lambda x: f"EUR {x:,.0f}"),
+    textposition="outside",
+))
+fig.update_layout(
+    height=max(200, len(cat_df) * 40),
+    margin=dict(l=0, r=80, t=10, b=0),
+    template="plotly_white",
+)
+st.plotly_chart(fig, use_container_width=True)
+
+# ══════════════════════════════════════════════════════════════
+# MAANDTREND
+# ══════════════════════════════════════════════════════════════
+
+if days >= 60:
     st.divider()
-    df = pd.DataFrame(expenses)
-    df["amount"] = df["amount"].astype(float)
+    st.markdown("#### Maandtrend")
 
-    # Summary metrics
-    total_expenses = df["amount"].sum()
-    monthly_recurring = df[df["recurring"] == "Maandelijks"]["amount"].sum()
-    yearly_recurring = df[df["recurring"] == "Jaarlijks"]["amount"].sum()
+    outgoing["month"] = pd.to_datetime(outgoing["date"]).dt.to_period("M").astype(str)
+    monthly = outgoing.groupby("month")["amount"].sum().reset_index()
+    monthly.columns = ["Maand", "Uitgaven"]
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.metric("Totaal gelogd", f"EUR {total_expenses:,.0f}")
-    with c2:
-        st.metric("Maandelijks terugkerend", f"EUR {monthly_recurring:,.0f}")
-    with c3:
-        annual_burn = monthly_recurring * 12 + yearly_recurring
-        st.metric("Jaarlijkse vaste kosten", f"EUR {annual_burn:,.0f}")
-
-    # By category chart
-    st.markdown("#### Per Categorie")
-    cat_df = df.groupby("category")["amount"].sum().sort_values(ascending=True).reset_index()
-    cat_df.columns = ["Categorie", "Bedrag"]
-
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        y=cat_df["Categorie"], x=cat_df["Bedrag"],
-        orientation="h",
+    fig_trend = go.Figure()
+    fig_trend.add_trace(go.Bar(
+        x=monthly["Maand"], y=monthly["Uitgaven"],
         marker_color="#003566",
-        text=cat_df["Bedrag"].apply(lambda x: f"EUR {x:,.0f}"),
+        text=monthly["Uitgaven"].apply(lambda x: f"EUR {x:,.0f}"),
         textposition="outside",
     ))
-    fig.update_layout(
-        height=max(200, len(cat_df) * 35),
-        margin=dict(l=0, r=80, t=10, b=0),
-        template="plotly_white",
+    fig_trend.update_layout(
+        height=300, margin=dict(l=0, r=0, t=10, b=0),
+        yaxis_title="EUR", template="plotly_white",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig_trend, use_container_width=True)
 
-    # Full list
-    st.markdown("#### Alle Uitgaven")
-    display_df = df[["date", "description", "amount", "category", "recurring"]].copy()
-    display_df.columns = ["Datum", "Omschrijving", "Bedrag", "Categorie", "Frequentie"]
-    display_df = display_df.sort_values("Datum", ascending=False)
-    display_df["Bedrag"] = display_df["Bedrag"].apply(lambda x: f"EUR {x:,.2f}")
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+# ══════════════════════════════════════════════════════════════
+# ALLE TRANSACTIES
+# ══════════════════════════════════════════════════════════════
 
-    # Delete option
-    with st.expander("Uitgave verwijderen"):
-        if expenses:
-            options = [f"{e['date']} — {e['description']} (EUR {e['amount']:,.2f})" for e in expenses]
-            to_delete = st.selectbox("Selecteer uitgave", options)
-            if st.button("Verwijderen", type="secondary"):
-                idx = options.index(to_delete)
-                expenses.pop(idx)
-                _save_expenses(expenses)
-                st.success("Verwijderd")
-                st.rerun()
+st.divider()
+st.markdown("#### Alle Uitgaven")
+
+display = outgoing[["date", "description", "amount", "category"]].copy()
+display.columns = ["Datum", "Omschrijving", "Bedrag", "Categorie"]
+display = display.sort_values("Datum", ascending=False)
+display["Bedrag"] = display["Bedrag"].apply(lambda x: f"EUR {x:,.2f}")
+st.dataframe(display, use_container_width=True, hide_index=True)
+
+# ── Inkomsten ──
+st.divider()
+st.markdown("#### Inkomsten")
+if not incoming.empty:
+    inc_display = incoming[["date", "description", "amount"]].copy()
+    inc_display.columns = ["Datum", "Omschrijving", "Bedrag"]
+    inc_display = inc_display.sort_values("Datum", ascending=False)
+    inc_display["Bedrag"] = inc_display["Bedrag"].apply(lambda x: f"EUR {x:,.2f}")
+    st.dataframe(inc_display, use_container_width=True, hide_index=True)
 else:
-    st.info("Nog geen uitgaven gelogd. Voeg je eerste uitgave toe hierboven.")
+    st.info("Geen inkomsten in deze periode.")

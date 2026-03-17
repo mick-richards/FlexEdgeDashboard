@@ -63,14 +63,15 @@ if _bank_code and "bank_callback_handled" not in st.session_state:
 # ── Navigation ──
 runway = st.Page("pages/1_Runway.py", title="Runway", icon=":material/savings:", default=True)
 expenses = st.Page("pages/2_Uitgaven.py", title="Uitgaven", icon=":material/payments:")
-revenue = st.Page("pages/3_Omzet.py", title="Omzet & Facturen", icon=":material/receipt_long:")
-pipeline = st.Page("pages/4_Pipeline.py", title="Pipeline", icon=":material/filter_alt:")
-utilization = st.Page("pages/5_Uren.py", title="Uren & Bezetting", icon=":material/schedule:")
-resourcing = st.Page("pages/6_Resourcing.py", title="Resourcing", icon=":material/groups:")
-settings = st.Page("pages/7_Instellingen.py", title="Instellingen", icon=":material/settings:")
+cost_plan = st.Page("pages/3_Kostenplan.py", title="Kostenplan", icon=":material/edit_calendar:")
+revenue = st.Page("pages/4_Omzet.py", title="Omzet & Facturen", icon=":material/receipt_long:")
+pipeline = st.Page("pages/5_Pipeline.py", title="Pipeline", icon=":material/filter_alt:")
+utilization = st.Page("pages/6_Uren.py", title="Uren & Bezetting", icon=":material/schedule:")
+resourcing = st.Page("pages/7_Resourcing.py", title="Resourcing", icon=":material/groups:")
+settings = st.Page("pages/8_Instellingen.py", title="Instellingen", icon=":material/settings:")
 
 pg = st.navigation({
-    "Financieel": [runway, expenses, revenue, pipeline],
+    "Financieel": [runway, expenses, cost_plan, revenue, pipeline],
     "Team": [utilization, resourcing],
     "Systeem": [settings],
 })
