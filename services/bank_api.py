@@ -41,7 +41,7 @@ def _get_private_key() -> str:
     # Try split base64 key parts (EB_KEY_1 through EB_KEY_5)
     try:
         parts = []
-        for i in range(1, 10):
+        for i in range(1, 20):
             part = st.secrets.get(f"EB_KEY_{i}", "")
             if part:
                 parts.append(str(part))
