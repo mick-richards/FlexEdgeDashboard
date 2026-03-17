@@ -104,9 +104,30 @@ else:
             st.markdown(f"**Fout bij lezen secrets:** {e}")
 
         from services.bank_api import _get_app_id, _get_private_key
+        import base64
         app_id = _get_app_id()
-        pk = _get_private_key()
         st.markdown(f"**App ID gevonden:** {'Ja' if app_id else 'Nee'} ({app_id[:8]}...)" if app_id else "**App ID gevonden:** Nee")
+
+        # Debug key reconstruction step by step
+        parts = []
+        for i in range(1, 10):
+            try:
+                val = st.secrets[f"EB_KEY_{i}"]
+                parts.append(str(val))
+                st.markdown(f"**EB_KEY_{i}:** {len(str(val))} chars")
+            except Exception:
+                break
+        if parts:
+            combined = "".join(parts)
+            st.markdown(f"**Combined:** {len(combined)} chars")
+            try:
+                decoded = base64.b64decode(combined)
+                st.markdown(f"**Decoded:** {len(decoded)} bytes")
+                st.markdown(f"**Starts with:** {decoded[:30]}")
+            except Exception as e:
+                st.error(f"**Base64 decode error:** {e}")
+
+        pk = _get_private_key()
         st.markdown(f"**Private key gevonden:** {'Ja' if pk else 'Nee'} ({len(pk)} chars)" if pk else "**Private key gevonden:** Nee")
 
     st.markdown("Voeg deze waarden toe aan **Streamlit Cloud Secrets**:")
