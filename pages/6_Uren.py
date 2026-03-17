@@ -13,9 +13,34 @@ from services.productive_api import get_time_entries, get_people, get_projects, 
 st.markdown("# Uren & Bezetting")
 
 today = date.today()
-month_start = today.replace(day=1)
-_, month_days = monthrange(today.year, today.month)
-month_end = today.replace(day=month_days)
+
+# ── Sidebar: month selector ──
+MONTH_NAMES = ["Januari", "Februari", "Maart", "April", "Mei", "Juni",
+               "Juli", "Augustus", "September", "Oktober", "November", "December"]
+month_options = []
+for i in range(6):
+    d = today.replace(day=1) - timedelta(days=i * 28)
+    d = d.replace(day=1)
+    label = f"{MONTH_NAMES[d.month - 1]} {d.year}"
+    month_options.append((label, d.year, d.month))
+
+with st.sidebar:
+    st.markdown("### Maand")
+    selected_label = st.selectbox(
+        "Selecteer maand",
+        [opt[0] for opt in month_options],
+        index=0,
+        key="uren_month",
+    )
+    sel_idx = [opt[0] for opt in month_options].index(selected_label)
+    sel_year = month_options[sel_idx][1]
+    sel_month = month_options[sel_idx][2]
+
+month_start = date(sel_year, sel_month, 1)
+_, month_days = monthrange(sel_year, sel_month)
+month_end = date(sel_year, sel_month, month_days)
+# For data query, cap end date at today if viewing current month
+query_end = min(month_end, today)
 week_start = today - timedelta(days=today.weekday())
 
 people = get_people()
@@ -23,7 +48,7 @@ projects = get_projects()
 people_lookup = build_lookup(people)
 project_lookup = build_lookup(projects)
 
-time_month = get_time_entries(after=month_start.isoformat(), before=today.isoformat())
+time_month = get_time_entries(after=month_start.isoformat(), before=query_end.isoformat())
 
 if time_month:
     df = pd.DataFrame(time_month)
@@ -35,7 +60,7 @@ if time_month:
     billable_hours = df[df["billable"]]["hours"].sum()
     util_rate = (billable_hours / total_hours * 100) if total_hours > 0 else 0
 
-    working_days_elapsed = sum(1 for d in pd.date_range(month_start, today) if d.weekday() < 5)
+    working_days_elapsed = sum(1 for d in pd.date_range(month_start, query_end) if d.weekday() < 5)
     working_days_total = sum(1 for d in pd.date_range(month_start, month_end) if d.weekday() < 5)
 
     # KPIs

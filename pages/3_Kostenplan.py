@@ -55,11 +55,6 @@ cost_data = {"Categorie": list(plan["categories"].keys())}
 for i, m in enumerate(MONTHS):
     cost_data[m] = [vals[i] for vals in plan["categories"].values()]
 
-# Add totals row
-cost_data["Categorie"].append("TOTAAL")
-for i, m in enumerate(MONTHS):
-    cost_data[m].append(sum(vals[i] for vals in plan["categories"].values()))
-
 cost_df = pd.DataFrame(cost_data)
 
 edited = st.data_editor(
@@ -73,16 +68,33 @@ edited = st.data_editor(
     },
 )
 
+# Show TOTAAL as non-editable summary below the editor
+totaal_data = {"Categorie": ["TOTAAL"]}
+for i, m in enumerate(MONTHS):
+    totaal_data[m] = [sum(vals[i] for vals in plan["categories"].values())]
+totaal_df = pd.DataFrame(totaal_data)
+st.dataframe(totaal_df, use_container_width=True, hide_index=True)
+
 if st.button("Opslaan", type="primary", key="save_costs"):
     if edited is not None:
-        # Skip the TOTAAL row
         for _, row in edited.iterrows():
             cat = row["Categorie"]
-            if cat == "TOTAAL":
-                continue
             plan["categories"][cat] = [float(row[m]) for m in MONTHS]
         _save(plan)
         st.success("Kostenplan opgeslagen!")
+
+# ── Add new category ──
+st.divider()
+st.markdown("#### Nieuwe categorie toevoegen")
+with st.form("add_category", clear_on_submit=True):
+    new_cat = st.text_input("Categorie naam")
+    add_submitted = st.form_submit_button("Toevoegen")
+    if add_submitted and new_cat and new_cat not in plan["categories"]:
+        plan["categories"][new_cat] = [0] * 12
+        _save(plan)
+        st.rerun()
+    elif add_submitted and new_cat in plan.get("categories", {}):
+        st.warning("Deze categorie bestaat al.")
 
 # ══════════════════════════════════════════════════════════════
 # EENMALIGE KOSTEN

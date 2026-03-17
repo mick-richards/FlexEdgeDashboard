@@ -14,17 +14,21 @@ st.caption("Werkelijke uitgaven op basis van banktransacties.")
 
 # ── Auto-categorization rules ──
 CATEGORY_RULES = {
-    "Salarissen": ["loonheffing", "salaris", "dga"],
+    "Salarissen": ["loonheffing", "salaris", "dga", "pensioen", "netto loon"],
     "Boekhouder": ["slingerland"],
     "Software & tools": ["anthropic", "claude", "github", "streamlit", "zapier", "plaud",
-                         "docusign", "think-cell", "microsoft", "norton", "cloudflare"],
+                         "docusign", "think-cell", "microsoft", "norton", "cloudflare",
+                         "productive", "miro", "canva", "notion", "figma", "google", "adobe", "gamma"],
     "Kantoor": ["spaces", "swoh", "plnt", "huur"],
     "Verzekeringen": ["verzekering", "insurance", "anker"],
-    "Reiskosten": ["ns.nl", "ov-chipkaart", "transvia", "parkeer", "shell", "bp "],
+    "Reiskosten": ["ns.nl", "ov-chipkaart", "transvia", "parkeer", "shell", "bp ",
+                   "uber", "taxi", "booking", "hotel", "benzine", "parkeren"],
     "Telecom": ["odido", "kpn", "t-mobile"],
-    "Belasting": ["belastingdienst", "gemeente", "kvk"],
+    "Belasting": ["belastingdienst", "gemeente", "kvk", "btw", "vennootschapsbelasting"],
     "Bank": ["transactiekosten", "rente"],
     "Inhuur": ["gerben", "vermeulen", "eddie"],
+    "Marketing & acquisitie": ["lunch", "restaurant", "eten", "event", "netwerk", "borrel"],
+    "Opleiding": ["cursus", "course", "training", "boek", "conferentie"],
 }
 
 
@@ -45,7 +49,8 @@ if not bank_configured():
 with st.sidebar:
     st.markdown("### Periode")
     period = st.selectbox("Toon", ["Laatste 30 dagen", "Laatste 90 dagen", "Dit jaar"], key="exp_period")
-    days_map = {"Laatste 30 dagen": 30, "Laatste 90 dagen": 90, "Dit jaar": (date.today() - date(2026, 1, 1)).days}
+    today = date.today()
+    days_map = {"Laatste 30 dagen": 30, "Laatste 90 dagen": 90, "Dit jaar": (today - date(today.year, 1, 1)).days}
     days = days_map[period]
 
 # ── Load transactions ──

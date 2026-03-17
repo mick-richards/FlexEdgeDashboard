@@ -1,7 +1,9 @@
 """Omzet & Facturen — Revenue tracking and budget burn."""
 from __future__ import annotations
 
+import json
 from datetime import date
+from pathlib import Path
 
 import streamlit as st
 import pandas as pd
@@ -29,12 +31,16 @@ if paid:
     monthly.columns = ["Maand", "Omzet"]
     monthly = monthly.tail(6)
 
-    # Sidebar fixed costs for break-even line
-    total_fixed = (
-        st.session_state.get("s_salary", 8500)
-        + st.session_state.get("s_office", 1500)
-        + st.session_state.get("s_other", 500)
-    )
+    # Break-even from cost plan
+    COST_FILE = Path(__file__).parent.parent / "data" / "cost_plan.json"
+    if COST_FILE.exists():
+        cost_plan = json.loads(COST_FILE.read_text(encoding="utf-8"))
+        current_month = today.month - 1
+        recurring = sum(vals[current_month] for vals in cost_plan.get("categories", {}).values())
+        oneoff = sum(oo["amount"] for oo in cost_plan.get("one_offs", []) if oo["month"] == current_month)
+        total_fixed = recurring + oneoff
+    else:
+        total_fixed = 10500  # fallback
 
     fig = go.Figure()
     fig.add_trace(go.Bar(

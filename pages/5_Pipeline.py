@@ -42,15 +42,23 @@ if open_deals:
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=stage_df["status"], y=stage_df["Aantal"],
+        x=stage_df["status"], y=stage_df["Gewogen"],
         marker_color="#003566",
-        text=stage_df["Aantal"], textposition="outside",
+        text=stage_df["Gewogen"].apply(lambda x: f"EUR {x:,.0f}"),
+        textposition="outside",
+        name="Gewogen revenue",
     ))
     fig.update_layout(
         height=300, margin=dict(l=0, r=0, t=10, b=0),
+        yaxis_title="EUR (gewogen)",
         template="plotly_white",
     )
     st.plotly_chart(fig, use_container_width=True)
+
+    # Secondary: count per stage
+    st.caption("Aantal deals per stage")
+    stage_count = stage_df[["status", "Aantal"]].copy()
+    st.dataframe(stage_count, use_container_width=True, hide_index=True)
 
     # Deal list
     st.divider()

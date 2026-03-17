@@ -153,7 +153,7 @@ if bank_balance is not None and bank_balance > 0 and any(c > 0 for c in monthly_
 
     for offset in range(13):
         m_idx = (current_month + offset) % 12
-        year = 2026 + (current_month + offset) // 12
+        year = today.year + (current_month + offset) // 12
         d = date(year, m_idx + 1, 1)
         proj_dates.append(d)
         proj_bal.append(bal)

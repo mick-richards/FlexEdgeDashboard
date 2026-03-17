@@ -1,7 +1,9 @@
 """Resourcing — Weekly team allocation overview."""
 from __future__ import annotations
 
+import json
 from datetime import date
+from pathlib import Path
 
 import streamlit as st
 import pandas as pd
@@ -11,6 +13,20 @@ st.caption("Weekoverzicht: wie werkt waar? Bewerk de tabel voor de weekstart.")
 
 today = date.today()
 week_num = today.isocalendar()[1]
+
+RESOURCING_FILE = Path(__file__).parent.parent / "data" / "resourcing.json"
+RESOURCING_FILE.parent.mkdir(exist_ok=True)
+
+
+def _load_resourcing() -> dict:
+    if RESOURCING_FILE.exists():
+        return json.loads(RESOURCING_FILE.read_text(encoding="utf-8"))
+    return {}
+
+
+def _save_resourcing(data_dict: dict) -> None:
+    RESOURCING_FILE.write_text(json.dumps(data_dict, indent=2, ensure_ascii=False), encoding="utf-8")
+
 
 # ── Sidebar: team capacity ──
 with st.sidebar:
@@ -32,7 +48,13 @@ for proj in billable + internal:
 
 key = f"resourcing_w{week_num}"
 if key not in st.session_state:
-    st.session_state[key] = pd.DataFrame(data)
+    # Try loading from JSON
+    saved = _load_resourcing()
+    week_key = str(week_num)
+    if week_key in saved:
+        st.session_state[key] = pd.DataFrame(saved[week_key])
+    else:
+        st.session_state[key] = pd.DataFrame(data)
 
 st.markdown(f"#### Week {week_num}")
 
@@ -48,6 +70,12 @@ edited = st.data_editor(
 )
 
 if edited is not None:
+    # Persist to JSON
+    save_cols = [c for c in edited.columns if c not in ("Totaal", "Vrij")]
+    all_saved = _load_resourcing()
+    all_saved[str(week_num)] = edited[save_cols].to_dict(orient="list")
+    _save_resourcing(all_saved)
+
     alloc_cols = [c for c in edited.columns if c not in ("Persoon", "Capaciteit")]
     edited["Totaal"] = edited[alloc_cols].sum(axis=1)
     edited["Vrij"] = edited["Capaciteit"] - edited["Totaal"]
