@@ -62,6 +62,7 @@ if _bank_code and "bank_callback_handled" not in st.session_state:
 
 # ── Navigation ──
 weekstart = st.Page("pages/0_Weekstart.py", title="Weekstart", icon=":material/dashboard:", default=True)
+maandreview = st.Page("pages/0b_Maandreview.py", title="Maandreview", icon=":material/calendar_month:")
 runway = st.Page("pages/1_Runway.py", title="Runway", icon=":material/savings:")
 expenses = st.Page("pages/2_Uitgaven.py", title="Uitgaven", icon=":material/payments:")
 cost_plan = st.Page("pages/3_Kostenplan.py", title="Kostenplan", icon=":material/edit_calendar:")
@@ -72,8 +73,9 @@ resourcing = st.Page("pages/7_Resourcing.py", title="Resourcing", icon=":materia
 settings = st.Page("pages/8_Instellingen.py", title="Instellingen", icon=":material/settings:")
 
 pg = st.navigation({
-    "Overzicht": [weekstart],
-    "Financieel": [runway, expenses, cost_plan, revenue, pipeline],
+    "Overzicht": [weekstart, maandreview],
+    "Financieel": [runway, expenses, cost_plan, revenue],
+    "Sales": [pipeline],
     "Team": [utilization, resourcing],
     "Systeem": [settings],
 })

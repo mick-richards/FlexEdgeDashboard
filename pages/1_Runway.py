@@ -182,7 +182,7 @@ if bank_balance is not None and bank_balance > 0 and any(c > 0 for c in monthly_
     # Cost bars
     fig.add_trace(go.Bar(
         x=proj_dates, y=proj_cost,
-        marker_color="rgba(230, 57, 70, 0.25)",
+        marker_color="rgba(230, 57, 70, 0.3)",
         name="Kosten",
         hovertemplate="EUR %{y:,.0f}<extra>Kosten</extra>",
     ))
