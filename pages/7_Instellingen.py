@@ -32,11 +32,30 @@ if bank_configured() and account_id:
 elif bank_configured():
     st.info("Enable Banking is geconfigureerd. Koppel je bankrekening hieronder.")
 
-    # Check for callback code in URL
+    # Check for callback result (handled in app.py) or code in URL
+    callback_result = st.session_state.get("bank_callback_result")
     query_params = st.query_params
     code = query_params.get("code")
 
-    if code:
+    if callback_result:
+        result = callback_result
+        accounts = result.get("accounts", [])
+        session_id = result.get("session_id", "")
+        st.success("Bank succesvol gekoppeld!")
+        st.markdown(f"**Session ID:** `{session_id}`")
+        st.markdown("**Gevonden rekeningen:**")
+        for acc in accounts:
+            acc_id = acc.get("account_id", {})
+            iban = acc_id.get("iban", "onbekend") if isinstance(acc_id, dict) else str(acc_id)
+            uid = acc.get("uid", str(acc_id))
+            st.markdown(f"- IBAN: `{iban}` — Account ID: `{uid}`")
+        st.divider()
+        st.markdown("**Voeg deze waarden toe aan je Streamlit Cloud Secrets (onder de bestaande regels):**")
+        first_uid = accounts[0].get("uid", "") if accounts else ""
+        st.code(f'ENABLE_BANKING_ACCOUNT_ID = "{first_uid}"\nENABLE_BANKING_SESSION_ID = "{session_id}"', language="toml")
+        st.warning("Na het toevoegen: reboot de app via Streamlit Cloud.")
+
+    elif code:
         st.markdown("#### Autorisatie afronden...")
         result = complete_authorization(code)
         if result:

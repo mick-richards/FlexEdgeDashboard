@@ -49,6 +49,17 @@ def _check_auth() -> bool:
 if not _check_auth():
     st.stop()
 
+# ── Handle bank callback before page routing ──
+_bank_code = st.query_params.get("code")
+if _bank_code and "bank_callback_handled" not in st.session_state:
+    from services.bank_api import complete_authorization, is_configured
+    if is_configured():
+        result = complete_authorization(_bank_code)
+        if result:
+            st.session_state["bank_callback_handled"] = True
+            st.session_state["bank_callback_result"] = result
+            st.query_params.clear()
+
 # ── Navigation ──
 runway = st.Page("pages/1_Runway.py", title="Runway", icon=":material/savings:", default=True)
 expenses = st.Page("pages/2_Uitgaven.py", title="Uitgaven", icon=":material/payments:")
