@@ -1,7 +1,9 @@
-"""Uitgaven — Actual expenses from bank transactions."""
+"""Uitgaven — Actual expenses from bank transactions with editable categories."""
 from __future__ import annotations
 
+import json
 from datetime import date, timedelta
+from pathlib import Path
 
 import streamlit as st
 import pandas as pd
@@ -10,9 +12,30 @@ import plotly.graph_objects as go
 from services.bank_api import is_configured as bank_configured, get_transactions
 
 st.markdown("# Uitgaven")
-st.caption("Werkelijke uitgaven op basis van banktransacties.")
+st.caption("Werkelijke uitgaven op basis van banktransacties. Categorieën zijn aanpasbaar.")
+
+# ── Category overrides persistence ──
+OVERRIDES_FILE = Path(__file__).parent.parent / "data" / "category_overrides.json"
+OVERRIDES_FILE.parent.mkdir(exist_ok=True)
+
+
+def _load_overrides() -> dict:
+    if OVERRIDES_FILE.exists():
+        return json.loads(OVERRIDES_FILE.read_text(encoding="utf-8"))
+    return {}
+
+
+def _save_overrides(overrides: dict) -> None:
+    OVERRIDES_FILE.write_text(json.dumps(overrides, indent=2, ensure_ascii=False), encoding="utf-8")
+
 
 # ── Auto-categorization rules ──
+ALL_CATEGORIES = [
+    "Salarissen", "Boekhouder", "Software & tools", "Kantoor",
+    "Verzekeringen", "Reiskosten", "Telecom", "Belasting", "Bank",
+    "Inhuur", "Marketing & acquisitie", "Opleiding", "Overig",
+]
+
 CATEGORY_RULES = {
     "Salarissen": ["loonheffing", "salaris", "dga", "pensioen", "netto loon"],
     "Boekhouder": ["slingerland"],
@@ -41,6 +64,11 @@ def _categorize(description: str) -> str:
     return "Overig"
 
 
+def _make_tx_key(row: dict) -> str:
+    """Create a unique key for a transaction (date + amount + description truncated)."""
+    return f"{row.get('date', '')}|{row.get('amount', '')}|{str(row.get('description', ''))[:50]}"
+
+
 if not bank_configured():
     st.info("Koppel je bankrekening bij **Instellingen** om uitgaven automatisch te laden.")
     st.stop()
@@ -53,9 +81,11 @@ with st.sidebar:
     days_map = {"Laatste 30 dagen": 30, "Laatste 90 dagen": 90, "Dit jaar": (today - date(today.year, 1, 1)).days}
     days = days_map[period]
 
-# ── Load transactions ──
+# ── Load transactions + overrides ──
 with st.spinner("Transacties ophalen..."):
     transactions = get_transactions(days=days)
+
+overrides = _load_overrides()
 
 if not transactions:
     st.warning("Geen transacties gevonden voor deze periode.")
@@ -66,7 +96,11 @@ outgoing = df[df["amount"] < 0].copy()
 incoming = df[df["amount"] > 0].copy()
 
 outgoing["amount"] = outgoing["amount"].abs()
-outgoing["category"] = outgoing["description"].apply(_categorize)
+outgoing["auto_category"] = outgoing["description"].apply(_categorize)
+outgoing["tx_key"] = outgoing.apply(lambda r: _make_tx_key(r), axis=1)
+outgoing["category"] = outgoing.apply(
+    lambda r: overrides.get(r["tx_key"], r["auto_category"]), axis=1
+)
 
 # ══════════════════════════════════════════════════════════════
 # KPIs
@@ -74,7 +108,6 @@ outgoing["category"] = outgoing["description"].apply(_categorize)
 
 total_out = outgoing["amount"].sum()
 total_in = incoming["amount"].sum()
-n_transactions = len(outgoing)
 
 c1, c2, c3 = st.columns(3)
 with c1:
@@ -138,17 +171,59 @@ if days >= 60:
     st.plotly_chart(fig_trend, use_container_width=True)
 
 # ══════════════════════════════════════════════════════════════
-# ALLE TRANSACTIES
+# ALLE TRANSACTIES (met bewerkbare categorie)
 # ══════════════════════════════════════════════════════════════
 
 st.divider()
 st.markdown("#### Alle Uitgaven")
+st.caption("Klik op een categorie om deze aan te passen. Wijzigingen worden automatisch onthouden.")
 
-display = outgoing[["date", "description", "amount", "category"]].copy()
-display.columns = ["Datum", "Omschrijving", "Bedrag", "Categorie"]
-display = display.sort_values("Datum", ascending=False)
-display["Bedrag"] = display["Bedrag"].apply(lambda x: f"EUR {x:,.2f}")
-st.dataframe(display, use_container_width=True, hide_index=True)
+display = outgoing[["date", "description", "amount", "category", "tx_key"]].copy()
+display = display.sort_values("date", ascending=False).reset_index(drop=True)
+
+edited_df = st.data_editor(
+    display[["date", "description", "amount", "category"]].rename(
+        columns={"date": "Datum", "description": "Omschrijving", "amount": "Bedrag", "category": "Categorie"}
+    ),
+    use_container_width=True,
+    hide_index=True,
+    key="tx_editor",
+    disabled=["Datum", "Omschrijving", "Bedrag"],
+    column_config={
+        "Categorie": st.column_config.SelectboxColumn(
+            options=ALL_CATEGORIES,
+            width="medium",
+        ),
+        "Bedrag": st.column_config.NumberColumn(format="EUR %.2f"),
+    },
+)
+
+# Detect changes and save overrides
+if edited_df is not None:
+    changed = False
+    for idx, row in edited_df.iterrows():
+        tx_key = display.iloc[idx]["tx_key"]
+        new_cat = row["Categorie"]
+        auto_cat = outgoing[outgoing["tx_key"] == tx_key]["auto_category"].iloc[0] if tx_key in outgoing["tx_key"].values else None
+        if new_cat != auto_cat:
+            if overrides.get(tx_key) != new_cat:
+                overrides[tx_key] = new_cat
+                changed = True
+        elif tx_key in overrides:
+            del overrides[tx_key]
+            changed = True
+    if changed:
+        _save_overrides(overrides)
+        st.rerun()
+
+if overrides:
+    with st.sidebar:
+        st.divider()
+        st.markdown(f"### Aangepast")
+        st.caption(f"{len(overrides)} transactie(s) handmatig gecategoriseerd")
+        if st.button("Reset alle overschrijvingen"):
+            _save_overrides({})
+            st.rerun()
 
 # ── Inkomsten ──
 st.divider()
