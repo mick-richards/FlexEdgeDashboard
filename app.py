@@ -61,7 +61,8 @@ if _bank_code and "bank_callback_handled" not in st.session_state:
             st.query_params.clear()
 
 # ── Navigation ──
-runway = st.Page("pages/1_Runway.py", title="Runway", icon=":material/savings:", default=True)
+weekstart = st.Page("pages/0_Weekstart.py", title="Weekstart", icon=":material/dashboard:", default=True)
+runway = st.Page("pages/1_Runway.py", title="Runway", icon=":material/savings:")
 expenses = st.Page("pages/2_Uitgaven.py", title="Uitgaven", icon=":material/payments:")
 cost_plan = st.Page("pages/3_Kostenplan.py", title="Kostenplan", icon=":material/edit_calendar:")
 revenue = st.Page("pages/4_Omzet.py", title="Omzet & Facturen", icon=":material/receipt_long:")
@@ -71,6 +72,7 @@ resourcing = st.Page("pages/7_Resourcing.py", title="Resourcing", icon=":materia
 settings = st.Page("pages/8_Instellingen.py", title="Instellingen", icon=":material/settings:")
 
 pg = st.navigation({
+    "Overzicht": [weekstart],
     "Financieel": [runway, expenses, cost_plan, revenue, pipeline],
     "Team": [utilization, resourcing],
     "Systeem": [settings],
