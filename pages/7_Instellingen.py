@@ -78,6 +78,19 @@ ENABLE_BANKING_SESSION_ID = "{session_id}"
                 key="manual_bank_name",
             )
 
+        # Debug: test JWT creation
+        st.markdown("#### Debug: JWT test")
+        from services.bank_api import _get_private_key, _make_jwt
+        pk = _get_private_key()
+        st.markdown(f"Key length: {len(pk)} chars")
+        st.markdown(f"Starts with: `{pk[:30]}...`")
+        st.markdown(f"Ends with: `...{pk[-30:]}`")
+        try:
+            token = _make_jwt()
+            st.success(f"JWT OK: `{token[:40]}...`")
+        except Exception as e:
+            st.error(f"JWT FAILED: {e}")
+
         st.markdown("#### Stap 2: Autoriseren")
         if st.button("Koppel bankrekening", type="primary"):
             auth = start_authorization(bank_name)
