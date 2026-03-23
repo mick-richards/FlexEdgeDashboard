@@ -5,6 +5,7 @@ API credentials are read from Streamlit secrets or environment variables.
 """
 from __future__ import annotations
 
+import logging
 import os
 from datetime import date
 from typing import Any
@@ -12,18 +13,31 @@ from typing import Any
 import requests
 import streamlit as st
 
+log = logging.getLogger(__name__)
+
 BASE_URL = "https://api.productive.io/api/v2"
 
 
 def _get_credentials() -> tuple[str, str]:
     """Return (api_token, org_id) from secrets or env."""
     try:
-        token = st.secrets["PRODUCTIVE_API_TOKEN"]
-        org_id = st.secrets["PRODUCTIVE_ORG_ID"]
+        token = st.secrets.get("PRODUCTIVE_API_TOKEN", "")
+        org_id = st.secrets.get("PRODUCTIVE_ORG_ID", "")
+        # Also check nested sections (e.g. [productive] or [auth])
+        if not token:
+            for section in ("productive", "auth"):
+                sec = st.secrets.get(section, {})
+                if hasattr(sec, "get"):
+                    token = token or sec.get("PRODUCTIVE_API_TOKEN", "")
+                    org_id = org_id or sec.get("PRODUCTIVE_ORG_ID", "")
     except Exception:
+        token = ""
+        org_id = ""
+    if not token:
         token = os.environ.get("PRODUCTIVE_API_TOKEN", "")
+    if not org_id:
         org_id = os.environ.get("PRODUCTIVE_ORG_ID", "")
-    return token, org_id
+    return str(token), str(org_id)
 
 
 def _headers() -> dict[str, str]:
@@ -58,11 +72,43 @@ def _get_all_pages(endpoint: str, params: dict | None = None, max_pages: int = 1
     return all_data
 
 
+class _ApiError(Exception):
+    """Raised to signal an API error with a user-friendly message."""
+
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(message)
+
+
+def _safe_fetch(fetch_func, *args, label: str = "", **kwargs):
+    """Call a fetch function; raise _ApiError (with Dutch message) on failure."""
+    try:
+        return fetch_func(*args, **kwargs)
+    except requests.exceptions.HTTPError as exc:
+        status = exc.response.status_code if exc.response is not None else "?"
+        log.warning("Productive API error on %s: %s", label or fetch_func.__name__, exc)
+        raise _ApiError(f"Kon {label or 'data'} niet laden (HTTP {status}). Probeer later opnieuw.") from exc
+    except requests.exceptions.RequestException as exc:
+        log.warning("Productive API connection error on %s: %s", label or fetch_func.__name__, exc)
+        raise _ApiError(f"Verbindingsfout bij laden van {label or 'data'}. Controleer je internetverbinding.") from exc
+
+
+def safe_load(fetch_func, *args, **kwargs) -> list:
+    """Wrapper for page-level use: catches _ApiError, shows st.warning, returns []."""
+    try:
+        return fetch_func(*args, **kwargs)
+    except _ApiError as exc:
+        st.warning(exc.message)
+        return []
+
+
 # ── Invoices ──
 
 @st.cache_data(ttl=300)
 def get_invoices() -> list[dict]:
-    raw = _get_all_pages("invoices", {"page[size]": "200"})
+    raw = _safe_fetch(_get_all_pages, "invoices", {"page[size]": "200"}, label="facturen")
+    if not raw:
+        return []
     invoices = []
     for item in raw:
         attrs = item.get("attributes", {})
@@ -103,7 +149,9 @@ def get_time_entries(after: str | None = None, before: str | None = None) -> lis
         params["filter[after]"] = after
     if before:
         params["filter[before]"] = before
-    raw = _get_all_pages("time_entries", params)
+    raw = _safe_fetch(_get_all_pages, "time_entries", params, label="uren")
+    if not raw:
+        return []
     entries = []
     for item in raw:
         attrs = item.get("attributes", {})
@@ -126,7 +174,9 @@ def get_time_entries(after: str | None = None, before: str | None = None) -> lis
 @st.cache_data(ttl=300)
 def get_deals() -> list[dict]:
     # Productive uses deals endpoint with filter[type]=1 for sales deals
-    raw = _get_all_pages("deals", {"page[size]": "200", "filter[type]": "1"})
+    raw = _safe_fetch(_get_all_pages, "deals", {"page[size]": "200", "filter[type]": "1"}, label="deals")
+    if not raw:
+        return []
     deals = []
     for item in raw:
         attrs = item.get("attributes", {})
@@ -154,7 +204,9 @@ def get_deals() -> list[dict]:
 
 @st.cache_data(ttl=300)
 def get_budgets() -> list[dict]:
-    raw = _get_all_pages("deals", {"page[size]": "200", "filter[type]": "2"})
+    raw = _safe_fetch(_get_all_pages, "deals", {"page[size]": "200", "filter[type]": "2"}, label="budgetten")
+    if not raw:
+        return []
     budgets = []
     for item in raw:
         attrs = item.get("attributes", {})
@@ -180,7 +232,9 @@ def get_budgets() -> list[dict]:
 
 @st.cache_data(ttl=600)
 def get_people() -> list[dict]:
-    raw = _get_all_pages("people", {"page[size]": "200"})
+    raw = _safe_fetch(_get_all_pages, "people", {"page[size]": "200"}, label="personen")
+    if not raw:
+        return []
     return [
         {
             "id": item["id"],
@@ -195,7 +249,9 @@ def get_people() -> list[dict]:
 
 @st.cache_data(ttl=600)
 def get_projects() -> list[dict]:
-    raw = _get_all_pages("projects", {"page[size]": "200"})
+    raw = _safe_fetch(_get_all_pages, "projects", {"page[size]": "200"}, label="projecten")
+    if not raw:
+        return []
     return [
         {
             "id": item["id"],
@@ -209,7 +265,9 @@ def get_projects() -> list[dict]:
 
 @st.cache_data(ttl=600)
 def get_companies() -> list[dict]:
-    raw = _get_all_pages("companies", {"page[size]": "200"})
+    raw = _safe_fetch(_get_all_pages, "companies", {"page[size]": "200"}, label="bedrijven")
+    if not raw:
+        return []
     return [
         {
             "id": item["id"],
