@@ -478,6 +478,86 @@ else:
 # EMISSIEFACTOREN REFERENTIE
 # ══════════════════════════════════════════════════════════════
 
+# ══════════════════════════════════════════════════════════════
+# GHG RAPPORT EXPORT
+# ══════════════════════════════════════════════════════════════
+
+st.divider()
+st.markdown("#### Rapportage export")
+
+exp_col1, exp_col2 = st.columns([2, 1])
+with exp_col1:
+    st.caption("Download een GHG Protocol-conform overzicht als CSV. Bevat alle scopes, categorieën en emissiefactoren.")
+with exp_col2:
+    # Build export data
+    s3_data = summary["scope3"]
+    export_rows = [
+        {"Scope": "1", "Categorie": "Aardgas (kantoor)", "Eenheid": "m³", "Verbruik": sum(v.get("gas_m3", 0) for v in scope1_data.values()), "Emissiefactor": FACTORS["gas_m3"], "Factor eenheid": "kg CO₂e/m³", "kg CO₂e": s1, "Bron factor": "co2emissiefactoren.nl 2024"},
+        {"Scope": "2 (location)", "Categorie": "Elektriciteit", "Eenheid": "kWh", "Verbruik": sum(v.get("kwh", 0) for v in scope2_data.values()), "Emissiefactor": FACTORS["electricity_kwh_location"], "Factor eenheid": "kg CO₂e/kWh", "kg CO₂e": s2_loc, "Bron factor": "CBS/RVO 2024"},
+        {"Scope": "2 (market)", "Categorie": "Elektriciteit", "Eenheid": "kWh", "Verbruik": sum(v.get("kwh", 0) for v in scope2_data.values()), "Emissiefactor": 0.0 if any(v.get("green") for v in scope2_data.values()) else FACTORS["electricity_kwh_location"], "Factor eenheid": "kg CO₂e/kWh", "kg CO₂e": s2_mkt, "Bron factor": "Market-based (GoO)"},
+        {"Scope": "3.1", "Categorie": "Purchased Goods & Services", "Eenheid": "EUR", "Verbruik": "", "Emissiefactor": "diverse", "Factor eenheid": "kg CO₂e/EUR", "kg CO₂e": s3_data["cat1_purchased_goods_services"], "Bron factor": "EXIOBASE v3.8.2"},
+        {"Scope": "3.2", "Categorie": "Capital Goods", "Eenheid": "EUR", "Verbruik": "", "Emissiefactor": 0.25, "Factor eenheid": "kg CO₂e/EUR", "kg CO₂e": s3_data["cat2_capital_goods"], "Bron factor": "EXIOBASE v3.8.2"},
+        {"Scope": "3.3", "Categorie": "Fuel & Energy (WTT)", "Eenheid": "n.v.t.", "Verbruik": "", "Emissiefactor": "15%/10%", "Factor eenheid": "% op S1/S2", "kg CO₂e": s3_data["cat3_fuel_energy_wtt"], "Bron factor": "co2emissiefactoren.nl"},
+        {"Scope": "3.5", "Categorie": "Afval kantoor", "Eenheid": "forfaitair", "Verbruik": f"{fte_count} FTE", "Emissiefactor": FACTORS["waste_emission_factor"], "Factor eenheid": "kg CO₂e/kg afval", "kg CO₂e": s3_data["cat5_waste"], "Bron factor": "DEFRA 2024"},
+        {"Scope": "3.6", "Categorie": "Zakelijke reizen", "Eenheid": "km", "Verbruik": sum(t.get("distance_km", 0) for t in travel_trips if t.get("date", "").startswith(str(current_year))), "Emissiefactor": "diverse", "Factor eenheid": "kg CO₂e/km", "kg CO₂e": s3_data["cat6_business_travel"], "Bron factor": "co2emissiefactoren.nl / DEFRA"},
+        {"Scope": "3.7", "Categorie": "Woon-werkverkeer", "Eenheid": "km/jaar", "Verbruik": "", "Emissiefactor": "diverse", "Factor eenheid": "kg CO₂e/km", "kg CO₂e": s3_data["cat7_commuting"], "Bron factor": "co2emissiefactoren.nl"},
+        {"Scope": "3.8", "Categorie": "Upstream Leased Assets", "Eenheid": "EUR", "Verbruik": "", "Emissiefactor": 0.10, "Factor eenheid": "kg CO₂e/EUR", "kg CO₂e": s3_data["cat8_leased_assets"], "Bron factor": "EXIOBASE v3.8.2"},
+    ]
+    export_df = pd.DataFrame(export_rows)
+
+    # Add totals
+    total_row = {"Scope": "TOTAAL", "Categorie": "", "Eenheid": "", "Verbruik": "", "Emissiefactor": "", "Factor eenheid": "", "kg CO₂e": total_loc, "Bron factor": ""}
+    export_df = pd.concat([export_df, pd.DataFrame([total_row])], ignore_index=True)
+
+    csv = export_df.to_csv(index=False, sep=";", decimal=",")
+    st.download_button(
+        "Download GHG rapport (CSV)",
+        data=csv,
+        file_name=f"FlexEdge_GHG_rapport_{current_year}.csv",
+        mime="text/csv",
+        type="primary",
+    )
+
+# ══════════════════════════════════════════════════════════════
+# EMISSIEFACTOREN REFERENTIE
+# ══════════════════════════════════════════════════════════════
+
+# ══════════════════════════════════════════════════════════════
+# BENCHMARKS
+# ══════════════════════════════════════════════════════════════
+
+st.divider()
+st.markdown("#### Benchmarks")
+
+if total_loc > 0 and fte_count > 0:
+    bm1, bm2, bm3 = st.columns(3)
+    with bm1:
+        per_fte = total_loc / fte_count
+        st.metric("kg CO₂e per FTE", f"{per_fte:,.0f}")
+    with bm2:
+        # Revenue from Productive if available
+        try:
+            from services.productive_api import safe_load, get_invoices
+            invoices = safe_load(get_invoices)
+            year_start = f"{current_year}-01-01"
+            ytd_revenue = sum(i["total_with_tax"] for i in invoices if i.get("status") == "paid" and (i.get("paid_date") or "") >= year_start)
+            if ytd_revenue > 0:
+                intensity = total_loc / ytd_revenue * 1000
+                st.metric("kg CO₂e / EUR 1.000 omzet", f"{intensity:,.1f}")
+            else:
+                st.metric("kg CO₂e / EUR 1.000 omzet", "—")
+        except Exception:
+            st.metric("kg CO₂e / EUR 1.000 omzet", "—")
+    with bm3:
+        st.metric("Scope 3 aandeel", f"{(s3 / total_loc * 100):,.0f}%" if total_loc > 0 else "—",
+                  help="Typisch voor dienstverlenende bedrijven: >80% Scope 3")
+else:
+    st.info("Voer emissiedata in om benchmarks te berekenen.")
+
+# ══════════════════════════════════════════════════════════════
+# EMISSIEFACTOREN REFERENTIE
+# ══════════════════════════════════════════════════════════════
+
 with st.expander("Emissiefactoren & bronnen"):
     st.markdown("""
 | Factor | Waarde | Eenheid | Bron |
