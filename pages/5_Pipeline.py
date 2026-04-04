@@ -5,12 +5,12 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-from services.productive_api import get_deals, get_companies, build_lookup
+from services.productive_api import get_deals, get_companies, build_lookup, safe_load
 
 st.markdown("# Pipeline")
 
-deals = get_deals()
-companies = get_companies()
+deals = safe_load(get_deals)
+companies = safe_load(get_companies)
 company_lookup = build_lookup(companies)
 
 # Filter to open deals only

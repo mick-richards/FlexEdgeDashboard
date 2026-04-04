@@ -104,13 +104,6 @@ def get_linked_account_id() -> str:
         return os.environ.get("ENABLE_BANKING_ACCOUNT_ID", "")
 
 
-def get_session_id() -> str:
-    try:
-        return st.secrets.get("ENABLE_BANKING_SESSION_ID", "")
-    except Exception:
-        return os.environ.get("ENABLE_BANKING_SESSION_ID", "")
-
-
 def get_redirect_url() -> str:
     try:
         return st.secrets.get("ENABLE_BANKING_REDIRECT_URL",
@@ -210,12 +203,27 @@ def complete_authorization(code: str) -> dict | None:
     return None
 
 
-# ── Data Retrieval ──
+# ── Per-account helpers (for holding accounts) ──
 
-@st.cache_data(ttl=900)
-def get_balance() -> dict | None:
-    """Fetch current account balance."""
-    account_id = get_linked_account_id()
+def _load_holding_bank_config(user: str) -> dict:
+    """Load bank config for a holding user from data/holding_{user}_bank.json."""
+    import json
+    path = Path(__file__).parent.parent / "data" / f"holding_{user}_bank.json"
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    return {}
+
+
+def save_holding_bank_config(user: str, config: dict) -> None:
+    """Save bank config for a holding user."""
+    import json
+    path = Path(__file__).parent.parent / "data" / f"holding_{user}_bank.json"
+    path.parent.mkdir(exist_ok=True)
+    path.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
+
+def get_balance_for_account(account_id: str) -> dict | None:
+    """Fetch balance for a specific account ID (uses shared EB credentials)."""
     if not account_id or not is_configured():
         return None
     try:
@@ -227,7 +235,6 @@ def get_balance() -> dict | None:
         if resp.status_code != 200:
             return None
         balances = resp.json().get("balances", [])
-        # Prefer closing available or expected balance
         preferred_types = ["CLAV", "XPCD", "ITAV", "CLBD", "ITBD"]
         for ptype in preferred_types:
             for bal in balances:
@@ -237,7 +244,6 @@ def get_balance() -> dict | None:
                         "currency": bal["balance_amount"]["currency"],
                         "date": bal.get("reference_date", date.today().isoformat()),
                     }
-        # Fallback to first available
         if balances:
             bal = balances[0]
             return {
@@ -250,25 +256,21 @@ def get_balance() -> dict | None:
     return None
 
 
-@st.cache_data(ttl=900)
-def get_transactions(days: int = 90) -> list[dict]:
-    """Fetch recent transactions."""
-    account_id = get_linked_account_id()
+def get_transactions_for_account(account_id: str, days: int = 90) -> list[dict]:
+    """Fetch transactions for a specific account ID."""
     if not account_id or not is_configured():
         return []
 
     date_from = (date.today() - timedelta(days=days)).isoformat()
     date_to = date.today().isoformat()
-
     all_transactions = []
-    continuation_key = None
 
     try:
-        for _ in range(10):  # max 10 pages
+        continuation_key = None
+        for _ in range(10):
             params = {"date_from": date_from, "date_to": date_to}
             if continuation_key:
                 params["continuation_key"] = continuation_key
-
             resp = requests.get(
                 f"{BASE_URL}/accounts/{account_id}/transactions",
                 headers=_headers(),
@@ -277,21 +279,17 @@ def get_transactions(days: int = 90) -> list[dict]:
             )
             if resp.status_code != 200:
                 break
-
             data = resp.json()
             for tx in data.get("transactions", []):
                 amount = tx.get("transaction_amount", {})
                 indicator = tx.get("credit_debit_indicator", "")
                 raw_amount = float(amount.get("amount", 0))
-                # Make outgoing negative
                 if indicator == "DBIT":
                     raw_amount = -abs(raw_amount)
-
                 remittance = tx.get("remittance_information", [])
                 description = remittance[0] if remittance else ""
                 creditor = tx.get("creditor", {}).get("name", "") if isinstance(tx.get("creditor"), dict) else ""
                 debtor = tx.get("debtor", {}).get("name", "") if isinstance(tx.get("debtor"), dict) else ""
-
                 all_transactions.append({
                     "date": tx.get("booking_date", ""),
                     "amount": raw_amount,
@@ -301,12 +299,24 @@ def get_transactions(days: int = 90) -> list[dict]:
                     "debtor": debtor,
                     "type": "incoming" if indicator == "CRDT" else "outgoing",
                 })
-
             continuation_key = data.get("continuation_key")
             if not continuation_key:
                 break
-
     except Exception:
         pass
 
     return sorted(all_transactions, key=lambda x: x["date"], reverse=True)
+
+
+# ── Data Retrieval (FlexEdge BV — default account) ──
+
+@st.cache_data(ttl=900)
+def get_balance() -> dict | None:
+    """Fetch current account balance."""
+    return get_balance_for_account(get_linked_account_id())
+
+
+@st.cache_data(ttl=900)
+def get_transactions(days: int = 90) -> list[dict]:
+    """Fetch recent transactions."""
+    return get_transactions_for_account(get_linked_account_id(), days)
