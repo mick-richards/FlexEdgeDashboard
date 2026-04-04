@@ -196,16 +196,6 @@ def calc_travel_emissions(trips: list[dict]) -> float:
     return total
 
 
-def get_scope3_from_expenses(outgoing_df) -> dict[str, float]:
-    """Extract Scope 3 Cat 1, 2, 8 totals from the Uitgaven page's SBTi mapping.
-
-    Expects a DataFrame with 'scope3_cat' and 'co2e_kg' columns.
-    """
-    if outgoing_df is None or outgoing_df.empty:
-        return {}
-    return outgoing_df.groupby("scope3_cat")["co2e_kg"].sum().to_dict()
-
-
 def build_summary(
     scope1_data: dict,
     scope2_data: dict,

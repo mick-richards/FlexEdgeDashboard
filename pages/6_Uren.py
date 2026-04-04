@@ -41,7 +41,6 @@ _, month_days = monthrange(sel_year, sel_month)
 month_end = date(sel_year, sel_month, month_days)
 # For data query, cap end date at today if viewing current month
 query_end = min(month_end, today)
-week_start = today - timedelta(days=today.weekday())
 
 people = safe_load(get_people)
 projects = safe_load(get_projects)

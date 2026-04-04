@@ -28,12 +28,6 @@ TRAVEL_KEYWORDS = [
     "station", "airport", "schiphol", "centraal", "intercity",
 ]
 
-# Location keywords that indicate physical presence (not online)
-PHYSICAL_KEYWORDS = [
-    "kantoor", "office", "straat", "weg", "laan", "plein", "gracht",
-    "building", "gebouw", "etage", "verdieping",
-]
-
 # Online meeting indicators (NOT travel)
 ONLINE_KEYWORDS = [
     "teams", "zoom", "meet.google", "webex", "online",
@@ -49,15 +43,6 @@ def load_known_routes() -> list[dict]:
         data = json.loads(path.read_text(encoding="utf-8"))
         return data.get("routes", [])
     return []
-
-
-def save_known_routes(routes: list[dict]) -> None:
-    DATA_DIR.mkdir(exist_ok=True)
-    path = DATA_DIR / "known_routes.json"
-    path.write_text(
-        json.dumps({"routes": routes}, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
 
 
 def match_route(subject: str, routes: list[dict]) -> dict | None:

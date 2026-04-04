@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 import streamlit as st
 import pandas as pd
@@ -36,15 +37,8 @@ scope2_data = load_scope2()
 commute_employees = load_commute()
 travel_trips = load_travel_log() + load_holding_travel()
 
-# Try to load Scope 3 expense data from Uitgaven
+# Scope 3 expense data placeholder (requires future Uitgaven integration)
 expense_scope3 = {}
-try:
-    from services.productive_api import safe_load, get_invoices
-    from services.bank_api import is_configured as bank_configured, get_transactions
-    if bank_configured():
-        from pages import _uitgaven_helpers  # noqa: F401 — not available, skip
-except Exception:
-    pass
 
 # Default FTE count
 fte_count = st.sidebar.number_input("FTE (voor afvalschatting)", value=2.5, step=0.5, min_value=0.5, key="fte_count")
