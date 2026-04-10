@@ -104,13 +104,6 @@ def get_linked_account_id() -> str:
         return os.environ.get("ENABLE_BANKING_ACCOUNT_ID", "")
 
 
-def get_session_id() -> str:
-    try:
-        return st.secrets.get("ENABLE_BANKING_SESSION_ID", "")
-    except Exception:
-        return os.environ.get("ENABLE_BANKING_SESSION_ID", "")
-
-
 def get_redirect_url() -> str:
     try:
         return st.secrets.get("ENABLE_BANKING_REDIRECT_URL",

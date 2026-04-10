@@ -18,7 +18,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from services.travel import scan_events, calc_trip_co2
+from services.travel import scan_events  # noqa: F401 — used by callers
 
 
 def save_scan_results(results: list[dict]) -> None:
@@ -26,14 +26,6 @@ def save_scan_results(results: list[dict]) -> None:
     path.parent.mkdir(exist_ok=True)
     path.write_text(json.dumps({"results": results, "scanned_at": date.today().isoformat()}, indent=2), encoding="utf-8")
     print(f"Saved {len(results)} scan results to {path}")
-
-
-def load_scan_results() -> list[dict]:
-    path = Path(__file__).parent / "data" / "scan_results.json"
-    if path.exists():
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return data.get("results", [])
-    return []
 
 
 if __name__ == "__main__":
