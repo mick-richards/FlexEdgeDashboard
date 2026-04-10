@@ -12,7 +12,7 @@ import plotly.graph_objects as go
 
 from services.productive_api import (
     get_invoices, get_time_entries, get_deals, get_people, get_projects,
-    get_companies, get_budgets, build_lookup,
+    get_companies, get_budgets, build_lookup, safe_load,
 )
 from services.bank_api import is_configured as bank_configured, get_balance, get_transactions
 
@@ -32,12 +32,12 @@ year_start = today.replace(month=1, day=1)
 
 # ── Load all data ──
 with st.spinner("Data ophalen..."):
-    invoices = get_invoices()
-    people = get_people()
-    projects = get_projects()
-    companies = get_companies()
-    deals = get_deals()
-    budgets = get_budgets()
+    invoices = safe_load(get_invoices)
+    people = safe_load(get_people)
+    projects = safe_load(get_projects)
+    companies = safe_load(get_companies)
+    deals = safe_load(get_deals)
+    budgets = safe_load(get_budgets)
 
 people_lookup = build_lookup(people)
 project_lookup = build_lookup(projects)
@@ -206,7 +206,7 @@ col_chart, col_util = st.columns([2, 1], gap="large")
 with col_chart:
     # Weekly billable vs total — last 8 weeks
     eight_weeks_ago = today - timedelta(weeks=8)
-    time_8w = get_time_entries(after=eight_weeks_ago.isoformat(), before=today.isoformat())
+    time_8w = safe_load(get_time_entries, after=eight_weeks_ago.isoformat(), before=today.isoformat())
 
     if time_8w:
         wdf = pd.DataFrame(time_8w)
@@ -245,7 +245,7 @@ with col_util:
     month_end = date(today.year, today.month, month_days)
     query_end = min(month_end, today)
 
-    time_month = get_time_entries(after=month_start.isoformat(), before=query_end.isoformat())
+    time_month = safe_load(get_time_entries, after=month_start.isoformat(), before=query_end.isoformat())
     if time_month:
         mdf = pd.DataFrame(time_month)
         mdf["hours"] = mdf["minutes"] / 60
