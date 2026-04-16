@@ -9,8 +9,6 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any
-
 from services.emissions import FACTORS, TRAVEL_MODES
 
 DATA_DIR = Path(__file__).parent.parent / "data"

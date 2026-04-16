@@ -475,10 +475,6 @@ else:
     st.info("Voer maandelijkse gas- en elektriciteitsdata in om de trend te zien.")
 
 # ══════════════════════════════════════════════════════════════
-# EMISSIEFACTOREN REFERENTIE
-# ══════════════════════════════════════════════════════════════
-
-# ══════════════════════════════════════════════════════════════
 # GHG RAPPORT EXPORT
 # ══════════════════════════════════════════════════════════════
 
@@ -519,10 +515,6 @@ with exp_col2:
     )
 
 # ══════════════════════════════════════════════════════════════
-# EMISSIEFACTOREN REFERENTIE
-# ══════════════════════════════════════════════════════════════
-
-# ══════════════════════════════════════════════════════════════
 # BENCHMARKS
 # ══════════════════════════════════════════════════════════════
 
@@ -553,10 +545,6 @@ if total_loc > 0 and fte_count > 0:
                   help="Typisch voor dienstverlenende bedrijven: >80% Scope 3")
 else:
     st.info("Voer emissiedata in om benchmarks te berekenen.")
-
-# ══════════════════════════════════════════════════════════════
-# EMISSIEFACTOREN REFERENTIE
-# ══════════════════════════════════════════════════════════════
 
 with st.expander("Emissiefactoren & bronnen"):
     st.markdown("""
