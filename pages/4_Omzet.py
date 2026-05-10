@@ -9,16 +9,16 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-from services.productive_api import get_invoices, get_budgets, get_projects, build_lookup
+from services.productive_api import get_invoices, get_budgets, get_projects, build_lookup, safe_load
 
 st.markdown("# Omzet & Facturen")
 
 today = date.today()
 year_start = today.replace(month=1, day=1)
 
-invoices = get_invoices()
-budgets = get_budgets()
-projects = get_projects()
+invoices = safe_load(get_invoices)
+budgets = safe_load(get_budgets)
+projects = safe_load(get_projects)
 project_lookup = build_lookup(projects)
 
 # ── Monthly revenue chart ──

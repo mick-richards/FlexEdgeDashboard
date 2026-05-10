@@ -9,7 +9,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-from services.productive_api import get_invoices
+from services.productive_api import get_invoices, safe_load
 from services.bank_api import is_configured as bank_configured, get_balance
 
 st.markdown("# Runway")
@@ -40,7 +40,7 @@ today = date.today()
 current_month = today.month - 1
 year_start = today.replace(month=1, day=1)
 
-invoices = get_invoices()
+invoices = safe_load(get_invoices)
 sent_invoices = [i for i in invoices if i["status"] in ("sent", "overdue")]
 overdue_invoices = [i for i in invoices if i["status"] == "overdue"]
 paid_ytd = [i for i in invoices if i["status"] == "paid"

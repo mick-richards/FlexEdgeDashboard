@@ -8,7 +8,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-from services.productive_api import get_time_entries, get_people, get_projects, build_lookup
+from services.productive_api import get_time_entries, get_people, get_projects, build_lookup, safe_load
 
 st.markdown("# Uren & Bezetting")
 
@@ -43,12 +43,12 @@ month_end = date(sel_year, sel_month, month_days)
 query_end = min(month_end, today)
 week_start = today - timedelta(days=today.weekday())
 
-people = get_people()
-projects = get_projects()
+people = safe_load(get_people)
+projects = safe_load(get_projects)
 people_lookup = build_lookup(people)
 project_lookup = build_lookup(projects)
 
-time_month = get_time_entries(after=month_start.isoformat(), before=query_end.isoformat())
+time_month = safe_load(get_time_entries, after=month_start.isoformat(), before=query_end.isoformat())
 
 if time_month:
     df = pd.DataFrame(time_month)
@@ -121,7 +121,7 @@ if time_month:
     st.divider()
     st.markdown("#### Weektrend (laatste 8 weken)")
     eight_weeks_ago = today - timedelta(weeks=8)
-    time_8w = get_time_entries(after=eight_weeks_ago.isoformat(), before=today.isoformat())
+    time_8w = safe_load(get_time_entries, after=eight_weeks_ago.isoformat(), before=today.isoformat())
     if time_8w:
         wdf = pd.DataFrame(time_8w)
         wdf["hours"] = wdf["minutes"] / 60

@@ -10,7 +10,7 @@ import pandas as pd
 
 from services.productive_api import (
     get_invoices, get_time_entries, get_deals, get_people, get_projects,
-    get_companies, build_lookup,
+    get_companies, build_lookup, safe_load,
 )
 from services.bank_api import is_configured as bank_configured, get_balance
 
@@ -25,12 +25,12 @@ week_num = today.isocalendar()[1]
 
 # ── Load all data ──
 with st.spinner("Data ophalen..."):
-    invoices = get_invoices()
-    people = get_people()
-    projects = get_projects()
-    companies = get_companies()
-    deals = get_deals()
-    time_last_week = get_time_entries(
+    invoices = safe_load(get_invoices)
+    people = safe_load(get_people)
+    projects = safe_load(get_projects)
+    companies = safe_load(get_companies)
+    deals = safe_load(get_deals)
+    time_last_week = safe_load(get_time_entries,
         after=last_week_start.isoformat(),
         before=last_week_end.isoformat(),
     )
